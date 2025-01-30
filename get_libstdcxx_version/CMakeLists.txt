@@ -1,0 +1,9 @@
+add_library(get_libstdcxx_version_srcs INTERFACE)
+add_library(AuditLibstdcxx::get_libstdcxx_version_srcs ALIAS get_libstdcxx_version_srcs)
+target_sources(get_libstdcxx_version_srcs INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/get_libstdcxx_version.h)
+target_include_directories(get_libstdcxx_version_srcs INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_executable(get_libstdcxx_version)
+target_sources(get_libstdcxx_version PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/get_libstdcxx_version.c)
+target_link_libraries(get_libstdcxx_version PRIVATE get_libstdcxx_version_srcs audit_libstdcxx_common)
+set_target_properties(get_libstdcxx_version PROPERTIES OUTPUT_NAME "get_libstdcxx_version")
