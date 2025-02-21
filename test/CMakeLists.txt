@@ -1,11 +1,10 @@
 enable_testing()
 cmake_policy(SET CMP0144 NEW)
-find_package(GTest REQUIRED)
 include(GoogleTest)
 
 add_executable(tests)
 target_sources(tests PRIVATE test.cpp)
-target_link_libraries(tests PRIVATE dl test_audit_libstdcxx GTest::GTest GTest::Main)
+target_link_libraries(tests PRIVATE dl audit_libstdcxx_srcs GTest::GTest GTest::Main)
 target_link_options(tests PRIVATE "-Wl,-v")
 target_compile_definitions(tests PRIVATE GOOGLE_TEST)
 gtest_discover_tests(tests)

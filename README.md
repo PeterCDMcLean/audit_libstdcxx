@@ -85,17 +85,31 @@ There are several 'gotchas' of the audit library:
 
 Please refer to the example for reference.
 
-The audit library CMake target must be searched for and found by `find_package(audit_libstdcxx REQUIRED)`
+First, set the `AuditLibstdcxx_LIBSTDCXX_SO_PATHS` cache variable either through the one of the following methods:
+  - Command Line:
+    -DAuditLibstdcxx_LIBSTDCXX_SO_PATHS="<Path1> <Path2>"
+  - preset JSON:
+    "AuditLibstdcxx_LIBSTDCXX_SO_PATHS":<Path1> <Path2>",
+  - CMakeLists.txt (BEFORE `find_package`):
+  ```
+    set(AuditLibstdcxx_LIBSTDCXX_SO_PATHS "<Path1> <Path2>"
+        CACHE STRING "Set candidate paths for libstdc++.so.6 smart resolution")
+  ```
+
+The audit library CMake target must be searched for and found by `find_package(AuditLibstdcxx REQUIRED)`
+
+During find_package, the libstdcxx_so target will wrap the libstdc++.so.6 with the highest GLIBCXX ELF symbol version.
 
 The user must accomplish three objectives:
-  1. Link exectuables with the `link_audit_libstdcxx` CMake Target.
-      - By default in this example, this is done transitively with the `system_libstdcxx` target
-      - There is a CMAKE variable `USE_EXAMPLE_LIBSTDXX` when set to "TRUE" will use an `example_libstdcxx`
-  2. Install the 'shipped' libstdcxx that the is compiled with your project.
-      - By default in the example, the `system_libstdcxx` target is installed to `${CMAKE_INSTALL_PREFIX}/lib`.
-  3. Ship the audit library and set the DT_AUDIT ELF property through a special CMake custom property
+  1. Link exectuables with the `AuditLibstdcxx::libstdcxx_exe` CMake Target.
+      - This will transitively link with the link_audit_libstdcxx target which will set the -audit flag to the linker
+  2. Set the `AUDIT_LIBRARIES` custom property of the exectuable to the audit library's relative path
+      - This sets the DT_AUDIT ELF property through a CMake custom property
+      - This path must be accessible in both build environment AND install environment for full functionality. See step 4.
+  3. Install the libstdcxx that the was chosen by AuditLibstdcxx
+      - By default in the example, the `libstdcxx_so` target is installed to `${CMAKE_INSTALL_PREFIX}/lib`.
+  4. Install the audit library for both built and installed environments
       - Copy the audit library to a known path relative to the application's build and installed path
-      - Set the `AUDIT_LIBRARIES` custom property of the application to the audit library's relative path
       - NOTE: If a path in `AUDIT_LIBRARIES` does not resolve to an audit library, systems with glibc 2.32+ show a runtime error (but still proceed)
 
 In order to execute an application from the build folder, the build binary and audit library relative paths and AUDIT_LIBRARIES property must be the
