@@ -17,8 +17,9 @@ int main(int argc, char* argv[]) {
   const int fd_libstdcxx = open(argv[1], O_RDONLY);
   ASSERT(fd_libstdcxx >= 0, "Invalid or missing file supplied: %s\n", argv[1]);
   uint32_t version = 0;
-  const int error = get_libstdcxx_version(fd_libstdcxx, argv[1], &version);
-  ASSERT(error == 0, "Error reading supplied libstdc++.so.6: %s\n", argv[1]);
+  const error_code_t error = get_libstdcxx_version(fd_libstdcxx, argv[1], &version);
+  ASSERT(error >= ec_success, "Fatal Error reading supplied libstdc++.so.6: %s\n", argv[1]);
+  ASSERT(error == ec_success, "Architecture (32b vs 64b) Error reading supplied libstdc++.so.6: %s\n", argv[1]);
   printf("%08x\n", version);
   // `fd_libstdcxx` is closed by `get_libstdcxx_version`
   return error;

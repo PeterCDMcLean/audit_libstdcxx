@@ -34,6 +34,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 #include "audit_libstdcxx_export.h"
 #include "get_libstdcxx_version.h"
 #include "macros.h"
+#include "error_types.h"
 
 #ifndef STATIC
 #ifndef GOOGLE_TEST
@@ -45,6 +46,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 static const char libstdcxx_rel_path[] = "/libstdc++.so.6";
 static const size_t len_libstdcxx_rel_path = 15;
+static const uint32_t invalid_glibcxx_version = 0xDEADBEEF;
 
 STATIC size_t size_t_min(size_t a, size_t b) {
   return (a < b) ? a : b;
@@ -52,9 +54,9 @@ STATIC size_t size_t_min(size_t a, size_t b) {
 
 /**
  * Retrieve the dt_runpath or dt_rpath from the parent exectuable's Program Header
- * @return 0 on success, -1 on failure
+ * @return error_code_t
  */
-STATIC int get_parent_executable_runpath_rpath(const ElfW(Phdr) * const phdr, const size_t phnum, const char** const dt_runpath, const char** const dt_rpath) {
+STATIC error_code_t get_parent_executable_runpath_rpath(const ElfW(Phdr) * const phdr, const size_t phnum, const char** const dt_runpath, const char** const dt_rpath) {
   ASSERT(dt_runpath && dt_rpath, "Unexpected NULL arguments\n");
 
   ASSERT(phdr && phnum, "Failed to retrieve program headers from aux vectors\n");
@@ -71,6 +73,7 @@ STATIC int get_parent_executable_runpath_rpath(const ElfW(Phdr) * const phdr, co
 
   TRACE("base_address %lu\n", (unsigned long)base_address);
 
+  error_code_t error = ec_fatal_error;
   // Iterate over program headers to locate PT_DYNAMIC
   for (size_t i = 0; i < phnum; i++) {
     if (phdr[i].p_type == PT_DYNAMIC) {
@@ -89,25 +92,27 @@ STATIC int get_parent_executable_runpath_rpath(const ElfW(Phdr) * const phdr, co
       for (ElfW(Dyn)* dyn = dynamic; dyn->d_tag != DT_NULL; dyn++) {
         if (dyn->d_tag == DT_RUNPATH) {
           *dt_runpath = strtab + dyn->d_un.d_val;
+          error = ec_success;
           TRACE("DT_RUNPATH: %s\n", strtab + dyn->d_un.d_val);
         } else if (dyn->d_tag == DT_RPATH) {
           *dt_rpath = strtab + dyn->d_un.d_val;
+          error = ec_success;
           TRACE("DT_RPATH: %s\n", strtab + dyn->d_un.d_val);
         }
       }
       break;
     }
   }
-  return 0;
+  return error;
 }
 
 /**
  * This function checks whether a path exists and returns the _open_ fd in the void* data.
  * The caller is responsible for closing the open fd.
  * A callback is used to facilitate unit testing
- * @return 0 on success -1 on failure
+ * @return error_code_t
  */
-STATIC int trypath(const char* const path, void* data) {
+STATIC error_code_t trypath(const char* const path, void* data) {
   ASSERT(NULL != data && NULL != path, "Unexpected NULL argument");
   // Check if the path exists
   TRACE("Trying path %s\n", path);
@@ -115,13 +120,13 @@ STATIC int trypath(const char* const path, void* data) {
 
   // File does not exist
   if (fd < 0) {
-    return -1;
+    return ec_fatal_error;
   }
 
   // Store the fd in data pointer, to be used by the caller
   *((int*)data) = fd;
 
-  return 0;
+  return ec_success;
 }
 
 /**
@@ -130,10 +135,16 @@ STATIC int trypath(const char* const path, void* data) {
  * ex:  "$ORIGIN:$ORIGIN../lib"
  * Replace $ORIGIN as necessary
  * NOTE: on a success, the caller of this function owns the buffer at *p_path and must munmap as necessary
- * @return 0 on success -1 on failure
+ * @return error_code_t
  */
-STATIC int find_libstdcxx_from_dt_path(const char* const dt_path, const char* const ORIGIN, int (*trypath_callback)(const char* const path, void* data),
-                                       void* callback_data, char** p_path, size_t* p_path_buffer_len) {
+STATIC error_code_t find_libstdcxx_from_dt_path(
+  const char* const dt_path,
+  const char* const ORIGIN,
+  error_code_t (*trypath_callback)(const char* const path, void* data),
+  void* callback_data,
+  char** p_path,
+  size_t* p_path_buffer_len
+) {
   ASSERT(p_path && p_path_buffer_len, "Unexpected NULL arguments");
 
   const size_t dt_path_len = strlen(dt_path);
@@ -183,7 +194,7 @@ STATIC int find_libstdcxx_from_dt_path(const char* const dt_path, const char* co
         libstdcxx_path = (char*)mmap(NULL, needed_len, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
         if (libstdcxx_path == MAP_FAILED) {
           ERROR("Audit library: Failed to allocate memory for libstdc++ path. runtime link errors may occur\n");
-          return -1;
+          return ec_fatal_error;
         }
         len_path_buffer = needed_len;
       }
@@ -211,7 +222,7 @@ STATIC int find_libstdcxx_from_dt_path(const char* const dt_path, const char* co
         libstdcxx_path = (char*)mmap(NULL, needed_len, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
         if (libstdcxx_path == MAP_FAILED) {
           ERROR("Audit library: Failed to allocate memory for libstdc++ path. runtime link errors may occur\n");
-          return -1;
+          return ec_fatal_error;
         }
         len_path_buffer = needed_len;
       }
@@ -232,7 +243,7 @@ STATIC int find_libstdcxx_from_dt_path(const char* const dt_path, const char* co
       *p_path_buffer_len = len_path_buffer;
 
       // No munmap occurs! The caller now owns the buffer
-      return 0;
+      return ec_success;
     }
 
     dt_path_cursor = end_of_this_section + 1;
@@ -244,10 +255,10 @@ STATIC int find_libstdcxx_from_dt_path(const char* const dt_path, const char* co
   }
 
   // Did not find a libstdc++ library in dt_path
-  return -1;
+  return ec_fatal_error;
 }
 
-static uint32_t shipped_glibcxx_version = 0xDEADBEEF;
+static uint32_t shipped_glibcxx_version = invalid_glibcxx_version;
 static char* shipped_libstdcxx_path = NULL;
 static size_t len_shipped_path_buffer = 0;
 
@@ -290,8 +301,8 @@ AUDIT_LIBSTDCXX_EXPORT unsigned int la_version(unsigned int version) {
   // Retrieve program headers and their count from auxiliary vectors
   ElfW(Phdr)* phdr = (ElfW(Phdr)*)getauxval(AT_PHDR);
   size_t phnum = getauxval(AT_PHNUM);
-  int error = get_parent_executable_runpath_rpath(phdr, phnum, &dt_runpath, &dt_rpath);
-  if (0 != error) {
+  const error_code_t error_paths = get_parent_executable_runpath_rpath(phdr, phnum, &dt_runpath, &dt_rpath);
+  if (ec_success != error_paths) {
     ERROR("Audit library: Cannot find our libstdc++. runtime link errors may occur\n");
     return LAV_CURRENT;
   }
@@ -299,15 +310,15 @@ AUDIT_LIBSTDCXX_EXPORT unsigned int la_version(unsigned int version) {
   TRACE("DT_RPATH %s\n", dt_rpath);
 
   // Look in DT_RUNPATH then DT_RPATH for libstdc++ and record its path
-  int found = -1;
+  error_code_t found = ec_fatal_error;
   int fd_libstdcxx = -1;
   if (dt_runpath[0] != '\0') {
     found = find_libstdcxx_from_dt_path(dt_runpath, ORIGIN, &trypath, (void*)&fd_libstdcxx, &shipped_libstdcxx_path, &len_shipped_path_buffer);
   }
-  if (0 != found) {
+  if (ec_success != found) {
     found = find_libstdcxx_from_dt_path(dt_rpath, ORIGIN, &trypath, (void*)&fd_libstdcxx, &shipped_libstdcxx_path, &len_shipped_path_buffer);
   }
-  if (0 != found) {
+  if (ec_success != found) {
     ERROR("Audit library: Cannot find our libstdc++. runtime link errors may occur\n");
     if (NULL != shipped_libstdcxx_path) {
       munmap(shipped_libstdcxx_path, len_shipped_path_buffer);
@@ -321,8 +332,25 @@ AUDIT_LIBSTDCXX_EXPORT unsigned int la_version(unsigned int version) {
   }
 
   // We found libstdc++, record its versions
-  if (get_libstdcxx_version(fd_libstdcxx, shipped_libstdcxx_path, &shipped_glibcxx_version)) {
-    ERROR("Audit library: Could not determine shipped libstdc++ version");
+  const error_code_t error_elf = get_libstdcxx_version(fd_libstdcxx, shipped_libstdcxx_path, &shipped_glibcxx_version);
+  if (error_elf <= ec_fatal_error) {
+    if (shipped_libstdcxx_path) {
+      ERROR("Audit library: Could not determine shipped libstdc++ version from %s", shipped_libstdcxx_path);
+    } else {
+      ERROR("Audit library: Could not determine shipped libstdc++ version");
+    }
+  } else if (error_elf >= ec_non_fatal_error) {
+    ERROR("Audit library: Could not determine shipped libstdc++ version from %s", shipped_libstdcxx_path);
+    ERROR("An architecture (32b vs 64b) occured. An invalid libstdc++.so.6 exists in the DT_RUNPATH/DT_RPATH of this exectuable");
+  }
+  if (error_elf != ec_success) {
+    // Later code expects shipped_glibcxx_version to be modified from invalid_glibcxx_version
+    // Be explicit here
+    shipped_glibcxx_version = invalid_glibcxx_version;
+    if (NULL != shipped_libstdcxx_path) {
+      munmap(shipped_libstdcxx_path, len_shipped_path_buffer);
+    }
+    shipped_libstdcxx_path = NULL;
   }
   munmap(ORIGIN, len_ORIGIN);
 
@@ -354,7 +382,7 @@ AUDIT_LIBSTDCXX_EXPORT char* la_objsearch(const char* name, uintptr_t* cookie, u
 
   // This condition means the initial check to find the shipped libstdc++ versions failed.
   // early 'exit' by releasing the path back to ld.so
-  if ((shipped_glibcxx_version == 0xDEADBEEF) || (shipped_libstdcxx_path == NULL)) {
+  if ((shipped_glibcxx_version == invalid_glibcxx_version) || (shipped_libstdcxx_path == NULL)) {
     TRACE("Earlier error, exit early\n");
     return (char*)name;
   }
@@ -393,8 +421,12 @@ AUDIT_LIBSTDCXX_EXPORT char* la_objsearch(const char* name, uintptr_t* cookie, u
   // We load whichever is higher version.
   // This search path exists, extract the version of this system libstdc++ library
   uint32_t system_glibcxx_version = 0;
-  if (get_libstdcxx_version(fd_system_libstdcxx, name, &system_glibcxx_version)) {
+  const error_code_t error = get_libstdcxx_version(fd_system_libstdcxx, name, &system_glibcxx_version);
+  if (error <= ec_fatal_error) {
     ERROR("Audit library: Error reading system libstdc++ version");
+  } else if (error >= ec_non_fatal_error) {
+    // This is not a fatal error, but we should not load this library
+    return (char*)NULL;
   }
 
   TRACE("System glibcxx %x shipped %x\n", system_glibcxx_version, shipped_glibcxx_version);

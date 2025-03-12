@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include "macros.h"
+#include "error_types.h"
 
 #ifndef STATIC
 #ifndef GOOGLE_TEST
@@ -63,9 +64,9 @@ STATIC uint32_t version_string_to_int(const char* const str) {
  * Function to extract the glibcxx version from a libstdc++ shared library
  * Examines the .gnu.version_d section to find the max version of the version strings of the form GLIBCXX_Major.Minor.Revision
  * Versions returned are of the form 0x00AABBCC
- * @return 0 on success, -1 on failure
+ * @return error_code_t
  */
-STATIC int get_libstdcxx_version(const int fd, const char* const filename, uint32_t* const glibcxx_version) {
+STATIC error_code_t get_libstdcxx_version(const int fd, const char* const filename, uint32_t* const glibcxx_version) {
   ASSERT(fd >= 0, "Expecting an open file descriptor");
   ASSERT(filename && glibcxx_version, "Unexpected NULL arguments");
 
@@ -73,7 +74,7 @@ STATIC int get_libstdcxx_version(const int fd, const char* const filename, uint3
   if (fstat(fd, &st) < 0) {
     perror("Error getting file size");
     close(fd);
-    return -1;
+    return ec_fatal_error;
   }
 
   size_t file_size = (size_t)st.st_size;
@@ -81,7 +82,7 @@ STATIC int get_libstdcxx_version(const int fd, const char* const filename, uint3
   if (mapped == MAP_FAILED) {
     perror("Error mapping file");
     close(fd);
-    return -1;
+    return ec_fatal_error;
   }
 
   close(fd);
@@ -91,7 +92,22 @@ STATIC int get_libstdcxx_version(const int fd, const char* const filename, uint3
   if (memcmp(ehdr->e_ident, ELFMAG, SELFMAG) != 0) {
     ERROR("File %s is not a valid ELF file\n", filename);
     munmap(mapped, file_size);
-    return -1;
+    return ec_fatal_error;
+  }
+
+  #if __ELF_NATIVE_CLASS == 64
+    #define EXPECTED_ELFCLASS ELFCLASS64
+  #elif __ELF_NATIVE_CLASS == 32
+    #define EXPECTED_ELFCLASS ELFCLASS32
+  #else
+    #error "Unknown compilation target"
+  #endif
+  if (ehdr->e_ident[EI_CLASS] != EXPECTED_ELFCLASS) {
+    // ELF does not match the expected class.
+    // Parsing cannot continue as the offsets will not align
+    // This is not a fatal error
+    munmap(mapped, file_size);
+    return ec_non_fatal_error;
   }
 
   ASSERT(ehdr->e_shoff < file_size, "Invalid ELF, section header is outside the ELF size\n");
@@ -183,9 +199,9 @@ STATIC int get_libstdcxx_version(const int fd, const char* const filename, uint3
   munmap(mapped, file_size);
   if (!at_least_one_glibcxx_version_found) {
     TRACE_ELF("No glibcxx version found\n");
-    return -1;
+    return ec_fatal_error;
   }
-  return 0;
+  return ec_success;
 }
 
 #endif

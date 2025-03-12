@@ -32,10 +32,11 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 extern "C" {
 #include <link.h>
+#include "error_types.h"
 uint32_t version_string_to_int(const char* const str);
-int get_parent_executable_runpath_rpath(const ElfW(Phdr) * const phdr, const size_t phnum, const char** const dt_runpath, const char** const dt_rpath);
-int get_libstdcxx_version(const int fd, const char* const filename, uint32_t* const glibcxx_version);
-int find_libstdcxx_from_dt_path(const char* const dt_path, const char* const ORIGIN, int (*trypath_callback)(const char* const path, void* data),
+error_code_t get_parent_executable_runpath_rpath(const ElfW(Phdr) * const phdr, const size_t phnum, const char** const dt_runpath, const char** const dt_rpath);
+error_code_t get_libstdcxx_version(const int fd, const char* const filename, uint32_t* const glibcxx_version);
+error_code_t find_libstdcxx_from_dt_path(const char* const dt_path, const char* const ORIGIN, error_code_t (*trypath_callback)(const char* const path, void* data),
                                 void* callback_data, char** p_path, size_t* p_path_buffer_len);
 }
 
@@ -74,7 +75,7 @@ TEST(VerStr2Int, num_dot_num_dot_num_dot_num) {
   EXPECT_EQ(version_string_to_int("1.2.3.4"), 0x00010203);
 }
 
-extern "C" int cpptrypath_callback(const char* const path, void* data);
+extern "C" error_code_t cpptrypath_callback(const char* const path, void* data);
 
 struct callback_data_t {
   std::string match_path;
@@ -95,20 +96,20 @@ struct callback_data_t {
   }
 };
 
-int cpptrypath_callback(const char* const path, void* data) {
+error_code_t cpptrypath_callback(const char* const path, void* data) {
   callback_data_t* cdata = reinterpret_cast<callback_data_t*>(data);
   cdata->paths.push_back(std::string(path));
   if (cdata->match_path == std::string(path)) {
-    return 0;
+    return ec_success;
   }
-  return -1;
+  return ec_fatal_error;
 }
 
 TEST(ParseDTPath, empty) {
   char* path;
   size_t path_buffer_len;
   callback_data_t data("");
-  EXPECT_EQ(find_libstdcxx_from_dt_path("", "orangin", &cpptrypath_callback, (void*)&data, &path, &path_buffer_len), -1);
+  EXPECT_EQ(find_libstdcxx_from_dt_path("", "orangin", &cpptrypath_callback, (void*)&data, &path, &path_buffer_len), ec_fatal_error);
   EXPECT_EQ(data.paths.size(), 0);
   EXPECT_EQ(path, nullptr);
   EXPECT_EQ(path_buffer_len, 0);
@@ -121,7 +122,7 @@ TEST(ParseDTPath, only_semicolon) {
   char* path = reinterpret_cast<char*>(1);
   size_t path_buffer_len = -1;
   callback_data_t data("");
-  EXPECT_EQ(find_libstdcxx_from_dt_path(":", "orangin", &cpptrypath_callback, &data, &path, &path_buffer_len), -1);
+  EXPECT_EQ(find_libstdcxx_from_dt_path(":", "orangin", &cpptrypath_callback, &data, &path, &path_buffer_len), ec_fatal_error);
   EXPECT_EQ(data.paths.size(), 0);
   EXPECT_EQ(path, nullptr);
   EXPECT_EQ(path_buffer_len, 0);
@@ -134,7 +135,7 @@ TEST(ParseDTPath, ORIGIN) {
   char* path;
   size_t path_buffer_len;
   callback_data_t data("orangin/libstdc++.so.6");
-  EXPECT_EQ(find_libstdcxx_from_dt_path("$ORIGIN", "orangin", &cpptrypath_callback, &data, &path, &path_buffer_len), 0);
+  EXPECT_EQ(find_libstdcxx_from_dt_path("$ORIGIN", "orangin", &cpptrypath_callback, &data, &path, &path_buffer_len), ec_success);
   ASSERT_EQ(data.paths.size(), 1);
   EXPECT_EQ(data.paths.at(0), "orangin/libstdc++.so.6");
   EXPECT_EQ(std::string(path), "orangin/libstdc++.so.6");
@@ -148,7 +149,7 @@ TEST(ParseDTPath, ORIGIN_2) {
   char* path;
   size_t path_buffer_len;
   callback_data_t data("orangin/../libstdc++.so.6");
-  EXPECT_EQ(find_libstdcxx_from_dt_path("$ORIGIN:$ORIGIN/..", "orangin", &cpptrypath_callback, &data, &path, &path_buffer_len), 0);
+  EXPECT_EQ(find_libstdcxx_from_dt_path("$ORIGIN:$ORIGIN/..", "orangin", &cpptrypath_callback, &data, &path, &path_buffer_len), ec_success);
   ASSERT_EQ(data.paths.size(), 2);
   EXPECT_EQ(data.paths.at(0), "orangin/libstdc++.so.6");
   EXPECT_EQ(data.paths.at(1), "orangin/../libstdc++.so.6");
@@ -163,7 +164,7 @@ TEST(ParseDTPath, ORIGIN_2_1) {
   char* path;
   size_t path_buffer_len;
   callback_data_t data("orangin/libstdc++.so.6");
-  EXPECT_EQ(find_libstdcxx_from_dt_path("$ORIGIN:$ORIGIN/..", "orangin", &cpptrypath_callback, &data, &path, &path_buffer_len), 0);
+  EXPECT_EQ(find_libstdcxx_from_dt_path("$ORIGIN:$ORIGIN/..", "orangin", &cpptrypath_callback, &data, &path, &path_buffer_len), ec_success);
   ASSERT_EQ(data.paths.size(), 1);
   EXPECT_EQ(data.paths.at(0), "orangin/libstdc++.so.6");
   EXPECT_EQ(std::string(path), "orangin/libstdc++.so.6");
@@ -260,7 +261,7 @@ TEST(ParseElf, CheckThisGcc) {
   int fd = open(libstdcxx_path.c_str(), O_RDONLY);
 
   ASSERT_GT(fd, 0) << "Error opening libstdcc++ path\n";
-  ASSERT_EQ(get_libstdcxx_version(fd, libstdcxx_path.c_str(), &elf_abi_version), 0);
+  ASSERT_EQ(get_libstdcxx_version(fd, libstdcxx_path.c_str(), &elf_abi_version), ec_success);
   EXPECT_EQ(this_gcc_abi_ver_int, elf_abi_version)
       << "This test can fail if the tests are compiled with one gcc version and run with a libstdc++.so.6 from a different gcc version" << std::endl
       << "Ensure that the gcc used to compile this test matches the libstdc++.so.6 used to run it" << std::endl;
