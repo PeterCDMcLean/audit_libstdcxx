@@ -34,7 +34,7 @@ set_target_properties(AuditLibstdcxx::libstdcxx_so PROPERTIES
 if (AuditLibstdcxx_AUTO_LINK_LIBSTDCXX_SO)
 
   if(NOT TARGET filter_cxx_gnu )
-    add_library(filter_cxx_gnu INTERFACE)
+    add_library(filter_cxx_gnu INTERFACE IMPORTED GLOBAL)
     target_link_libraries(filter_cxx_gnu INTERFACE $<$<LINK_LANG_AND_ID:CXX,GNU>:AuditLibstdcxx::libstdcxx_so>)
   endif()
 
