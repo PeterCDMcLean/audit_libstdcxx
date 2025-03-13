@@ -8,6 +8,9 @@ option(AuditLibstdcxx_LIBSTDCXX_SO_PATHS
 option(AuditLibstdcxx_AUTO_LINK_LIBSTDCXX_SO
   "Use of `link_libraries` to pseudo-global link `libstdcxx_so` target with CXX,GNU targets" ON)
 
+option(AuditLibstdcxx_AUTO_LINK_LIBSTDCXX_EXE
+  "Use of `link_libraries` to pseudo-global link `libstdcxx_exe` target with CXX,GNU executable targets" ON)
+
 # Executable target that links with libstdc++ and applies the audit library
 add_library(libstdcxx_exe INTERFACE)
 add_library(AuditLibstdcxx::libstdcxx_exe ALIAS libstdcxx_exe)
@@ -42,4 +45,15 @@ if (AuditLibstdcxx_AUTO_LINK_LIBSTDCXX_SO)
 
   # Pseudo-Global target to filter CXX,GNU and link with libstdcxx_so
   link_libraries(AuditLibstdcxx::filter_cxx_gnu)
+endif()
+
+if (AuditLibstdcxx_AUTO_LINK_LIBSTDCXX_EXE)
+  if(NOT TARGET filter_cxx_gnu_exe )
+    add_library(filter_cxx_gnu_exe INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(filter_cxx_gnu_exe INTERFACE $<$<AND:$<LINK_LANG_AND_ID:CXX,GNU>,$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>>:AuditLibstdcxx::libstdcxx_exe>)
+  endif()
+  add_library(AuditLibstdcxx::filter_cxx_gnu_exe ALIAS filter_cxx_gnu_exe)
+
+  # Pseudo-Global target to filter CXX,GNU executables and link with libstdcxx_exe
+  link_libraries(AuditLibstdcxx::filter_cxx_gnu_exe)
 endif()

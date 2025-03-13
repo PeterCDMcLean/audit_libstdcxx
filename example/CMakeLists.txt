@@ -6,7 +6,11 @@ project(example_audit_libstdcxx)
 set(AuditLibstdcxx_LIBSTDCXX_SO_PATHS "${AuditLibstdcxx_LIBSTDCXX_SO_PATHS} ${CMAKE_CURRENT_SOURCE_DIR}" "$ENV{QUARTUS_ROOTDIR}/linux64"
     CACHE STRING "Set candidate paths for libstdc++.so.6 smart resolution")
 
-find_package(AuditLibstdcxx REQUIRED)
+set(AuditLibstdcxx_AUTO_LINK_LIBSTDCXX_SO ON CACHE BOOL "Enable auto linking to the libstdcxx.so.6 library")
+
+set(AuditLibstdcxx_AUTO_LINK_LIBSTDCXX_EXE ON CACHE BOOL "Enable auto linking to the link_audit_libstdcxx target for CXX,GNU executable targets")
+
+find_package(AuditLibstdcxx CONFIG REQUIRED)
 
 add_executable(example_audit_libstdcxx)
 
