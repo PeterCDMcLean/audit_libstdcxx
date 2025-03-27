@@ -1,0 +1,15 @@
+import os
+import sys
+
+from audit_libstdcxx import set_hooks_and_audit
+
+set_hooks_and_audit(@SITECUSTOMIZE_EXPECTED_LIBSTDCXX_PATH@)
+
+# Find the directory to this script and remove it from sys.paths
+sys.path = [path for path in sys.path if os.path.abspath(path) != os.path.dirname(__file__)]
+
+# Removing ourself from sys.modules
+sys.modules.pop('sitecustomize', None)
+
+# Python will ignore an ImportError from import sitecustomize
+import sitecustomize  # noqa: E402, F401

@@ -18,7 +18,7 @@ target_sources(example_audit_libstdcxx PRIVATE test.cpp)
 
 # On purpose, the libstdcxx_so does not have a default install path
 # Set it here
-install(IMPORTED_RUNTIME_ARTIFACTS  AuditLibstdcxx::libstdcxx_so
+install(IMPORTED_RUNTIME_ARTIFACTS AuditLibstdcxx::libstdcxx_so
   LIBRARY DESTINATION lib
 )
 
@@ -74,3 +74,24 @@ install(TARGETS example_audit_libstdcxx EXPORT example_audit_libstdcxx
 
 # The audit library is installed to the expected DT_AUDIT path
 install(FILES $<TARGET_FILE_DIR:example_audit_libstdcxx>/lib/$<TARGET_FILE_NAME:AuditLibstdcxx::audit_libstdcxx> DESTINATION lib)
+
+# Python target creation and installation
+get_target_property(LIBSTDCXXSO_PATH AuditLibstdcxx::libstdcxx_so IMPORTED_LOCATION)
+get_filename_component(LIBSTDCXXSO_PATH ${LIBSTDCXXSO_PATH} NAME)
+
+# The sitecustomize is generated from a template and the expected libstdcxx path is replaced
+# We are starting at pyaudit/sitecustomize.py, then we point to ../lib/${LIBSTDCXXSO_PATH}
+set(SITECUSTOMIZE_EXPECTED_LIBSTDCXX_PATH "os.path.join(os.path.dirname(os.path.dirname(__file__)), 'lib', '${LIBSTDCXXSO_PATH}')")
+configure_file(${SITECUSTOMIZE_TEMPLATE_PATH} ${CMAKE_CURRENT_BINARY_DIR}/install/pyaudit/sitecustomize.py @ONLY)
+add_executable(python_sitecustomize_install IMPORTED GLOBAL)
+set_target_properties(python_sitecustomize_install PROPERTIES
+  IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/install/pyaudit/sitecustomize.py
+)
+
+# The pyaudit scripts are installed using the audit (main script) target and the sitecustomize configured template target created above
+install(IMPORTED_RUNTIME_ARTIFACTS AuditLibstdcxx::python_audit_libstdcxx python_sitecustomize_install
+  RUNTIME DESTINATION pyaudit
+)
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pyaudit/elftools
+  DESTINATION pyaudit
+)

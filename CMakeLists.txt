@@ -8,12 +8,13 @@ option(BUILD_TESTING "Build unit tests with AuditLibstdcxx" ON)
 add_subdirectory(common)
 add_subdirectory(get_libstdcxx_version)
 add_subdirectory(load_libstdcxx)
+add_subdirectory(pyaudit)
 
 install(TARGETS link_audit_libstdcxx audit_libstdcxx get_libstdcxx_version EXPORT AuditLibstdcxx
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
-  FILE_SET HEADERS
+  FILE_SET HEADERS DESTINATION inc
 )
 
 install(EXPORT AuditLibstdcxx DESTINATION cmake
@@ -40,6 +41,14 @@ install(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/find_highest_libstdcxx.cmake
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstdcxx.cmake
   DESTINATION cmake
+)
+
+# Install the python audit script and sitecustomize template
+install(IMPORTED_RUNTIME_ARTIFACTS python_audit_libstdcxx python_sitecustomize_template
+  RUNTIME DESTINATION pyaudit
+)
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/pyaudit/elftools
+  DESTINATION pyaudit
 )
 
 if (BUILD_TESTING)

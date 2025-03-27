@@ -23,9 +23,7 @@ target_link_libraries(libstdcxx_exe INTERFACE
   AuditLibstdcxx::libstdcxx_so
 )
 
-set(LIBSTDCXX_CANDIDATE_PATHS "${CMAKE_CURRENT_SOURCE_DIR}" "${AuditLibstdcxx_LIBSTDCXX_SO_PATHS}")
-
-find_highest_libstdcxx("${LIBSTDCXX_CANDIDATE_PATHS}" LIBSTDCXXSO_PATH)
+find_highest_libstdcxx(LIBSTDCXXSO_PATH "${AuditLibstdcxx_LIBSTDCXX_SO_PATHS}")
 
 file(REAL_PATH ${LIBSTDCXXSO_PATH} LIBSTDCXXSO_RESOLVED_PATH EXPAND_TILDE)
 
@@ -57,3 +55,16 @@ if (AuditLibstdcxx_AUTO_LINK_LIBSTDCXX_EXE)
   # Pseudo-Global target to filter CXX,GNU executables and link with libstdcxx_exe
   link_libraries(AuditLibstdcxx::filter_cxx_gnu_exe)
 endif()
+
+# This customizes the sitecustomize.py file for the build environment.
+# Installed environment will differ! As a user, you must configure the sitecustomize template
+# for your expected installed environment and path to installed libstdc++.so.6
+get_target_property(SITECUSTOMIZE_TEMPLATE_PATH AuditLibstdcxx::python_sitecustomize_template IMPORTED_LOCATION)
+
+set(SITECUSTOMIZE_EXPECTED_LIBSTDCXX_PATH "\"${LIBSTDCXXSO_RESOLVED_PATH}\"")
+configure_file(${SITECUSTOMIZE_TEMPLATE_PATH} ${CMAKE_CURRENT_BINARY_DIR}/pyaudit/sitecustomize.py @ONLY)
+
+add_executable(AuditLibstdcxx::python_sitecustomize IMPORTED GLOBAL)
+set_target_properties(AuditLibstdcxx::python_sitecustomize PROPERTIES
+  IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/pyaudit/sitecustomize.py
+)

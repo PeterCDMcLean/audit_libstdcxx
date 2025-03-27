@@ -1,11 +1,19 @@
 
-function(find_highest_libstdcxx SEARCH_PATHS OPTIMAL_LIBSTDCXX)
+function(find_highest_libstdcxx OPTIMAL_LIBSTDCXX SEARCH_PATHS)
   set(HIGHEST_VALUE 0)
   set(FOUND_LIBRARY FALSE)
 
   get_target_property(get_libstdcxx_version_path AuditLibstdcxx::get_libstdcxx_version LOCATION)
 
-  list(APPEND SEARCH_PATHS "")
+  list(FIND SEARCH_PATHS "NO_DEFAULT_PATH" NO_DEFAULT_PATH)
+
+  if (NO_DEFAULT_PATH EQUAL -1)
+    list(APPEND SEARCH_PATHS "")
+  else()
+    list(REMOVE_AT SEARCH_PATHS ${NO_DEFAULT_PATH})
+    list(REMOVE_ITEM SEARCH_PATHS "")
+  endif()
+
   foreach(PATH IN LISTS SEARCH_PATHS)
     unset(LIB_FOUND)
     if (PATH STREQUAL "")

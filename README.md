@@ -131,6 +131,42 @@ Doing so lowers the glibc version that libstdc++ will depend on. An alterative i
 In our case, the Altera Quartus software suite ships with a libstdc++ that depends only on glibc version <= 2.17. The `example_libstdcxx` target shows how
 to link and ship a non-system default libstdc++
 
+# Python
+
+If your project provides a C++ shared library binding to python or a C++ shared library that is loaded by a python module, there are some additional challenges
+to be sure that the correct libstdc++ is loaded. When python, or abstractions such as Jypter notebooks, are the entry point, there is a different strategy
+to intercept the loading process and load the correct libstdc++.
+
+Python has its own concept of 'auditing' which is where different events can be hooked. However, it does not provide an easy execution interception.
+We use the `sitecustomize.py` flow of python, which is intended for setting up site-packages and adjusting sys.path. This lets us insert execution early into
+python before any user module has been begun execution. The `sitecustomize.py` then sets the hooks. The hooks check for shared library loads through module
+import or through CDLL load.
+
+When the audit hooks detect a shared library is loaded, it checks if any of that library's dependencies include libstdc++.
+If libstdc++ is among the dependencies, the audit library checks the version of the system libstdc++ versus the specified 'shipped' location
+
+This is a step-by-step explanation of the python audit hook and execution sequence:
+the execution process is as follows:
+
+  1. sitecustomize.py is invoked by Python as part of spin-up
+  2. sitecustomize.py imports audit_libstdcxx and sets the hooks for module import and CDLL load.
+  3. sitecustomize.py releases control back to Python
+  4. Normal Python invocation of user code. Let's assume it is running Jupyter notebook.
+  5. Jupyter will import ZeroMQ, which is a C++ shared library
+  6. The import hook triggers audit_libstdcxx hook.
+  7. The audit_libstdcxx hook detects a .so is being imported.
+  8. It looks at the dependencies of that .so with `ldd`
+  9. If libstdc++.so.6 is in the dependencies, it will start the libstdc++ checking process as follows:
+  10. it will check the GLIBCXX version of the shipped libstdc++.so.6 by parsing the file with ELF tools
+  11. It will find the path of the _system_ libstdc++.so.6 file by __invoking audit_libstdcxx.py as a subprocess executable__ (This prevents actually / accidentally loading the system libstdc++.so.6 into the main process)
+  12. Once the path of the system libstdc++.so.6 is known, check its version with ELF tools.
+  13. If the system libstdc++ version is less than the shipped, CDLL load the shipped libstdc++.so.6 (if the system libstdc++ version is equal or higher, ld.so loader will automatically load the system libstdc++)
+  14. Disable the hook and proceed as normal.
+
+
+As a user of this library, you will need to customize the `sitecustomize.py.in` template with the libstdc++.so.6 installed path.
+The location of the installed `sitecustomize.py` must be prepended to the `PYTHONPATH` of the end user system.
+
 # Testing
 
 This audit library has only been manually tested on 64bit Linux systems
