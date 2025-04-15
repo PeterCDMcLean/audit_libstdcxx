@@ -73,9 +73,23 @@ if __name__ == "__main__":
 
 import os  # noqa: E402
 import subprocess  # noqa: E402
+import re  # noqa: E402
 
 from elftools.elf.elffile import ELFFile  # noqa: E402
-from packaging.version import Version  # noqa: E402
+
+
+def parse_version(v):
+    match = re.fullmatch(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", v)
+    if not match:
+        print(f"audit_libstdcxx WARNING! Invalid ELF GLIBCXX version {v}\n"
+              "Runtime link errors may occur\n"
+              "Warning thrown from {__file__} at {__line__}", file=sys.stderr
+        )
+        return (0,0,0)
+    major = int(match.group(1))
+    minor = int(match.group(2) or 0)
+    patch = int(match.group(3) or 0)
+    return (major, minor, patch)
 
 
 def get_glibcxx_versions_from_gnu_version_d(elf_path):
@@ -87,7 +101,7 @@ def get_glibcxx_versions_from_gnu_version_d(elf_path):
         if not version_d_section:
             raise ValueError("No .gnu.version_d section found in the ELF file")
 
-        max_ver = Version("0")
+        max_ver = (0,0,0)
         # Iterate through version definitions
         for version, version_auxiliaries in version_d_section.iter_versions():
             # Each version entry contains the version string
@@ -95,7 +109,7 @@ def get_glibcxx_versions_from_gnu_version_d(elf_path):
                 # Check if the version name contains 'GLIBCXX'
                 version_name = aux.name
                 if "GLIBCXX_" in version_name:
-                    ver = Version(version_name[len("GLIBCXX_"):])
+                    ver = parse_version(version_name[len("GLIBCXX_"):])
                     if ver > max_ver:
                         max_ver = ver
 
