@@ -39,6 +39,9 @@ write_basic_package_version_file(
 install(FILES
   ${CMAKE_CURRENT_BINARY_DIR}/cmake/AuditLibstdcxxConfig.cmake
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/find_highest_libstdcxx.cmake
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/find_compiler_libstdcxx.cmake
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/custom_transitive_build_rpath.cmake
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/walk_all_targets.cmake
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstdcxx.cmake
   DESTINATION cmake
 )

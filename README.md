@@ -98,18 +98,18 @@ First, set the `AuditLibstdcxx_LIBSTDCXX_SO_PATHS` cache variable either through
 
 The audit library CMake target must be searched for and found by `find_package(AuditLibstdcxx REQUIRED)`
 
-During find_package, the libstdcxx_so target will wrap the libstdc++.so.6 with the highest GLIBCXX ELF symbol version.
+During find_package, the AuditLibstdcxx::libstdcxx_so target will wrap the libstdc++.so.6 with the highest GLIBCXX ELF symbol version.
 
-The user must accomplish three objectives:
-  1. Link exectuables with the `AuditLibstdcxx::libstdcxx_exe` CMake Target.
-      - This will transitively link with the link_audit_libstdcxx target which will set the -audit flag to the linker
-  2. Set the `AUDIT_LIBRARIES` custom property of the exectuable to the audit library's relative path
+If using the AUTO_LINK options, the user must accomplish three objectives:
+  1. Set the `AUDIT_LIBRARIES` custom property of the exectuable to the audit library's relative path
       - This sets the DT_AUDIT ELF property through a CMake custom property
-      - This path must be accessible in both build environment AND install environment for full functionality. See step 4.
-  3. Install the libstdcxx that the was chosen by AuditLibstdcxx
+      - $ORIGIN can be used, but there are CMake escape bugs for different generators.
+      - This path must be accessible in both build environment AND install environment for full functionality. See step 3.
+  2. Install the libstdcxx that the was chosen by AuditLibstdcxx
+      - Set INSTALL_RPATH such that it can find the installed libstdcxx
       - By default in the example, the `libstdcxx_so` target is installed to `${CMAKE_INSTALL_PREFIX}/lib`.
-  4. Install the audit library for both built and installed environments
-      - Copy the audit library to a known path relative to the application's build and installed path
+  3. Install the audit library for both built and installed environments
+      - The audit library must be discoverable from the AUDIT_LIBRARIES property.
       - NOTE: If a path in `AUDIT_LIBRARIES` does not resolve to an audit library, systems with glibc 2.32+ show a runtime error (but still proceed)
 
 In order to execute an application from the build folder, the build binary and audit library relative paths and AUDIT_LIBRARIES property must be the
@@ -122,6 +122,7 @@ same as in an installed target. There are post build steps which copy the binari
 There are several workarounds for unfortunate CMake bugs:
   - `target_link_options` does not play nicely with `$ORIGIN`. The work around is to use `target_link_libraries` instead.
   - CMake has a bug when escaping `$ORIGIN` for Ninja generator. The example has a workaround
+  - CMake will not put the compilers library directory in BUILD_RPATH. The audit library CMake scripts have an elaborate workaround.
 
 # libstdc++
 

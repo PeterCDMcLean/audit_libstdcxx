@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 project(example_audit_libstdcxx)
 
 # Append special example paths here to the search path for audit library's libstdc++.so.6 smart resolution
-set(AuditLibstdcxx_LIBSTDCXX_SO_PATHS "${AuditLibstdcxx_LIBSTDCXX_SO_PATHS} ${CMAKE_CURRENT_SOURCE_DIR}" "$ENV{QUARTUS_ROOTDIR}/linux64"
+set(AuditLibstdcxx_LIBSTDCXX_SO_PATHS "${AuditLibstdcxx_LIBSTDCXX_SO_PATHS} ${CMAKE_CURRENT_SOURCE_DIR}" "$ENV{QUARTUS_ROOTDIR}/linux64" "NO_DEFAULT_PATH"
     CACHE STRING "Set candidate paths for libstdc++.so.6 smart resolution")
 
 set(AuditLibstdcxx_AUTO_LINK_LIBSTDCXX_SO ON CACHE BOOL "Enable auto linking to the libstdcxx.so.6 library")
@@ -62,9 +62,15 @@ add_custom_command(
 # Use of RUNPATH vs RPATH is optional, although the recommendation is typically RUNPATH
 target_link_options(example_audit_libstdcxx PRIVATE -Wl,--enable-new-dtags)
 
-# We must set RUNPATH in both BUILD and INSTALL if we wish to find the shipped libstdc++
-set_target_properties(example_audit_libstdcxx PROPERTIES BUILD_RPATH "$<TARGET_FILE_DIR:AuditLibstdcxx::libstdcxx_so>")
+# We must set RUNPATH so that installed environment can discover the shipped libstdc++.so.6
+# NOTE that BUILD_RPATH is automatically managed by CMake. audit_libstdcxx has automatica special behavior if the compiler's libstdc++.so.6 is chosen.
 set_target_properties(example_audit_libstdcxx PROPERTIES INSTALL_RPATH "\$ORIGIN:\$ORIGIN/../lib")
+
+add_custom_target(print ALL VERBATIM
+  COMMAND ${CMAKE_COMMAND} -E echo
+     "example_audit_libstdcxx BUILD_RPATH: $<TARGET_PROPERTY:example_audit_libstdcxx,BUILD_RPATH>"
+    "$<TARGET_PROPERTY:example_audit_libstdcxx,BUILD_RPATH>"
+)
 
 install(TARGETS example_audit_libstdcxx EXPORT example_audit_libstdcxx
   ARCHIVE DESTINATION lib
