@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.21)
 
 include("${CMAKE_CURRENT_LIST_DIR}/find_highest_libstdcxx.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/find_compiler_libstdcxx.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/custom_transitive_build_rpath.cmake")
 
 option(AuditLibstdcxx_LIBSTDCXX_SO_PATHS
   "List of paths to search for libstdc++.so.6 candidate libraries" "")
@@ -26,6 +28,18 @@ target_link_libraries(libstdcxx_exe INTERFACE
 find_highest_libstdcxx(LIBSTDCXXSO_PATH "${AuditLibstdcxx_LIBSTDCXX_SO_PATHS}")
 
 file(REAL_PATH ${LIBSTDCXXSO_PATH} LIBSTDCXXSO_RESOLVED_PATH EXPAND_TILDE)
+
+find_compiler_libstdcxx(LIBSTDCXXSO_COMPILER_PATH)
+if (LIBSTDCXXSO_COMPILER_PATH AND NOT LIBSTDCXXSO_COMPILER_PATH STREQUAL "LIBSTDCXXSO_COMPILER_PATH-NOTFOUND")
+  get_filename_component(LIBSTDCXXSO_DIR "${LIBSTDCXXSO_PATH}" DIRECTORY)
+  if ("${LIBSTDCXXSO_DIR}" STREQUAL "${LIBSTDCXXSO_COMPILER_PATH}")
+    set_target_properties(AuditLibstdcxx::libstdcxx_so PROPERTIES
+      TRANSITIVE_LINK_PROPERTIES "BUILD_RPATH_"
+      INTERFACE_BUILD_RPATH_ "${LIBSTDCXXSO_DIR}"
+    )
+    custom_transitive_build_rpath()
+  endif()
+endif()
 
 set_target_properties(AuditLibstdcxx::libstdcxx_so PROPERTIES
   IMPORTED_LOCATION ${LIBSTDCXXSO_RESOLVED_PATH}

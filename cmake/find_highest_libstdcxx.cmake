@@ -1,3 +1,31 @@
+# Function: find_highest_libstdcxx
+# --------------------------------
+# Finds the highest version of `libstdc++.so.6` available in the specified search paths.
+#
+# Parameters:
+#   OPTIMAL_LIBSTDCXX (OUT) - The variable to store the path to the highest version of `libstdc++.so.6` found.
+#   SEARCH_PATHS (IN)       - A list of paths to search for `libstdc++.so.6`. Special values:
+#                             - "NO_COMPILER_PATH": Excludes the compiler's default library path.
+#                             - "NO_DEFAULT_PATH": Excludes the default search paths.
+#
+# Behavior:
+#   - Searches for `libstdc++.so.6` in the provided paths and optionally in the compiler's default path.
+#   - Uses a helper target `AuditLibstdcxx::get_libstdcxx_version` to extract the version of the library.
+#   - Converts the version from hexadecimal to decimal for comparison.
+#   - Updates the `CMAKE_BUILD_RPATH` if the highest version is found in the compiler's default path.
+#
+# Notes:
+#   - If no library is found, the output variable is set to `<OPTIMAL_LIBSTDCXX>-NOTFOUND`.
+#   - The function ensures compatibility with GCC compilers by handling their specific library paths.
+#
+# Example Usage:
+#   set(SEARCH_PATHS "/usr/lib" "/usr/local/lib" "NO_COMPILER_PATH")
+#   find_highest_libstdcxx(HIGHEST_LIBSTDCXX SEARCH_PATHS)
+#   if (HIGHEST_LIBSTDCXX STREQUAL "HIGHEST_LIBSTDCXX-NOTFOUND")
+#     message(FATAL_ERROR "No suitable libstdc++.so.6 found!")
+#   endif
+include_guard(GLOBAL)
+include("${CMAKE_CURRENT_LIST_DIR}/find_compiler_libstdcxx.cmake")
 
 function(find_highest_libstdcxx OPTIMAL_LIBSTDCXX SEARCH_PATHS)
   set(HIGHEST_VALUE 0)
@@ -12,6 +40,23 @@ function(find_highest_libstdcxx OPTIMAL_LIBSTDCXX SEARCH_PATHS)
   else()
     list(REMOVE_AT SEARCH_PATHS ${NO_DEFAULT_PATH})
     list(REMOVE_ITEM SEARCH_PATHS "")
+  endif()
+
+  list(FIND SEARCH_PATHS "NO_COMPILER_PATH" NO_COMPILER_PATH)
+
+  # Find the compiler's libstdc++.so.6 path
+
+  find_compiler_libstdcxx(ABS_LIBSTDCXX_PATH)
+
+  if (NO_COMPILER_PATH EQUAL -1)
+    if (ABS_LIBSTDCXX_PATH AND NOT ABS_LIBSTDCXX_PATH STREQUAL "ABS_LIBSTDCXX_PATH-NOTFOUND")
+      list(APPEND SEARCH_PATHS "${ABS_LIBSTDCXX_PATH}")
+    endif()
+  else()
+    list(REMOVE_AT SEARCH_PATHS ${NO_COMPILER_PATH})
+    if (ABS_LIBSTDCXX_PATH AND NOT ABS_LIBSTDCXX_PATH STREQUAL "ABS_LIBSTDCXX_PATH-NOTFOUND")
+      list(REMOVE_ITEM SEARCH_PATHS "${ABS_LIBSTDCXX_PATH}")
+    endif()
   endif()
 
   foreach(PATH IN LISTS SEARCH_PATHS)
